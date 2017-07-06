@@ -4,7 +4,7 @@ UI Test - automated tests which execute Gherkin test cases against http://uitest
 
 ## Test execution
 
-Runtests.cmd will build the project and execute all tests.
+Runtests.cmd will build the project, unblock all files in the packages folder, and then executes all tests.
 In case if your computer has a different .NET framework v4.0 version than 30319, please edit the path in the file.
 MSBuild.exe bundled with Visual Studio will also work.
 Results will be generated into the TestResults folder.
