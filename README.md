@@ -5,7 +5,7 @@ UI Test - automated tests which execute Gherkin test cases against http://uitest
 ## Test execution
 
 Runtests.cmd will build the project, unblock all files in the packages folder, and then executes all tests.
-The project was built against .NET 4.5.2. Tested with MSBuild version 4.7.2046.0 and newer on Windows 10. 
+The project was built against .NET 4.5.2. Tested with MSBuild version 4.7.2046 and newer on Windows 10. 
 In case of build failure, please edit the path to a proper version MSBuild in runtests.cmd accordingly.
 The path to build with the MSBuild bundled with Visual Studio 2017 is also in the file as a comment.
 
