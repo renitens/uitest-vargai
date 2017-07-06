@@ -1,0 +1,2788 @@
+<!DOCTYPE html>
+
+
+<html>
+	<head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+		<title>uitest_vargai Test Execution Report</title>
+        <script type="text/javascript" src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
+        <script type="text/javascript">
+            /**
+            * jQuery.fn.sortElements
+            * --------------
+            * #author James Padolsey (http://james.padolsey.com)
+            * #version 0.11
+            * #updated 18-MAR-2010
+            * #url https://raw.github.com/jamespadolsey/jQuery-Plugins/master/sortElements/jquery.sortElements.js
+            * --------------
+            * #param Function comparator:
+            *   Exactly the same behaviour as [1,2,3].sort(comparator)
+            *   
+            * #param Function getSortable
+            *   A function that should return the element that is
+            *   to be sorted. The comparator will run on the
+            *   current collection, but you may want the actual
+            *   resulting sort to occur on a parent or another
+            *   associated element.
+            *   
+            *   E.g. $('td').sortElements(comparator, function(){
+            *      return this.parentNode; 
+            *   })
+            *   
+            *   The <td>'s parent (<tr>) will be sorted instead
+            *   of the <td> itself.
+            */
+            jQuery.fn.sortElements = (function () {
+
+                var sort = [].sort;
+
+                return function (comparator, getSortable) {
+
+                    getSortable = getSortable || function () { return this; };
+
+                    var placements = this.map(function () {
+
+                        var sortElement = getSortable.call(this),
+                parentNode = sortElement.parentNode,
+
+                        // Since the element itself will change position, we have
+                        // to have some way of storing it's original position in
+                        // the DOM. The easiest way is to have a 'flag' node:
+                nextSibling = parentNode.insertBefore(
+                    document.createTextNode(''),
+                    sortElement.nextSibling
+                );
+
+                        return function () {
+
+                            if (parentNode === this) {
+                                throw new Error(
+                        "You can't sort elements if any one is a descendant of another."
+                    );
+                            }
+
+                            // Insert before flag:
+                            parentNode.insertBefore(this, nextSibling);
+                            // Remove flag:
+                            parentNode.removeChild(nextSibling);
+
+                        };
+
+                    });
+
+                    return sort.call(this, comparator).each(function (i) {
+                        placements[i].call(getSortable.call(this));
+                    });
+
+                };
+
+            })();
+        </script>
+        <script type="text/javascript">
+            jQuery.fn.setBarSizes = (function () {
+                return function (metricName, maxBarSize, min) {
+                    var max = Math.max.apply(Math, $.makeArray($(this).map(function () { return Number($(this).attr('data-sr-' + metricName)); })));
+                    var scale = 1.0;
+                    while (max > 0.0 && max <= 10.0) {
+                        scale = scale * 10.0;
+                        max = max * 10.0;
+                    }
+                    max = (Math.ceil(max / 2) * 2) / scale;
+
+                    this.each(function () {
+                        var barAnchor = $(this).find('a');
+                        var actual = $(this).attr('data-sr-' + metricName);
+                        var newHeight = Math.max(Math.round(maxBarSize * (actual - min) / (max - min)), 2);
+                        barAnchor.css({ height: newHeight });
+                    });
+
+                    var unit = "";
+                    if (metricName.substr(metricName.length - 4, 4) === "time")
+                        unit = "s";
+
+                    $('#testview .scale-min-label').each(function () {
+                        $(this).text(min.toString() + unit);
+                    });
+                    $('#testview .scale-max-label').each(function () {
+                        $(this).text(max.toString() + unit);
+                    });
+                    var mid = max / 2;
+                    $('#testview .scale-mid-label').each(function () {
+                        $(this).text(mid.toString() + unit);
+                    });
+                };
+            })();
+
+            function getComparer(metricName, isDesc) {
+                return function (a, b) {
+                    var aNumber = Number($(a).attr('data-sr-' + metricName));
+                    var bNumber = Number($(b).attr('data-sr-' + metricName));
+                    var result = aNumber > bNumber ? 1 : (aNumber < bNumber ? -1 : 0);
+                    if (isDesc)
+                        result = -1 * result;
+
+                    if (result == 0 && metricName != "order")
+                        result = getComparer("order", false)(a, b);
+
+                    return result;
+                };
+            }
+
+            var currentSort = "";
+            function doSort(allowToggleDesc) {
+                var newSort = $("input[name='barSortOrder']:checked").val();
+                if (allowToggleDesc && currentSort == newSort) {
+                    $('#barSortDesc').click();
+                    doSort(false);
+                    return;
+                }
+                currentSort = newSort;
+                $('#testview td.testview-item').sortElements(getComparer(newSort, $('#barSortDesc').is(':checked')));
+            }
+
+
+            function doSetHeights(allowSort) {
+                var selectedMetric = $("input[name='barHeight']:checked").val();
+                $('#testview td.testview-item').setBarSizes(selectedMetric, 60, 0.0);
+
+                if (allowSort && currentSort != selectedMetric) {
+                    var $radios = $("input[name='barSortOrder']");
+                    $radios.filter('[value=' + selectedMetric + ']').attr('checked', true);
+                    $("#barSortDesc").attr("checked", [true]);
+                    doSort(false);
+                }
+            }
+
+            $(document).ready(function () {
+                $("input[name='barSortOrder']").click(function () { doSort(true); return true; });
+                $("input[name='barSortDesc']").change(function () { doSort(false); });
+                $("input[name='barHeight']").change(function () { doSetHeights(true); });
+
+                doSort(false);
+                doSetHeights(false);
+
+                $("div.scrollable").css({ 'overflow': 'auto' });
+            });
+        </script>
+
+        <style type="text/css">
+            body 
+            {
+                color: #000000;
+                font-family: Arial,Liberation Sans,DejaVu Sans,sans-serif;
+                line-height: 130%;
+            }
+            h1 {
+                font-family: Trebuchet MS,Liberation Sans,DejaVu Sans,sans-serif;
+                font-size: 170%;
+                font-weight: bold;
+            }            
+            h2 {
+                font-family: Trebuchet MS,Liberation Sans,DejaVu Sans,sans-serif;
+                font-size: 130%;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }            
+            h3 {
+                font-family: Trebuchet MS,Liberation Sans,DejaVu Sans,sans-serif;
+                font-size: 120%;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }            
+            a.bar
+            {
+                text-decoration: none;
+                display: block;
+                line-height: 1px;
+            }
+            .description
+            {
+                font-style: italic;
+            }
+            .log 
+            {
+                width: 600px;
+                white-space: pre-wrap;
+                display: block;
+                margin: 0px;
+            }
+            .errorMessage 
+            {
+                width: 600px;
+                color: Red;
+                font-weight: bold;
+            }
+            .stackTrace 
+            {
+                width: 600px;
+                white-space: pre-wrap;
+                font-style: italic;
+                color: Red;
+                display: block;
+            }
+            table.testEvents
+            {
+                border: solid 1px #e8eef4;
+                border-collapse: collapse;
+            }
+            table.testEvents td
+            {
+                vertical-align: top;
+                padding: 5px;
+                border: solid 1px #e8eef4;
+            }
+            table.testEvents th
+            {
+                padding: 6px 5px;
+                text-align: left;
+                background-color: #e8eef4;
+                border: solid 1px #e8eef4;                
+            }
+            .comment
+            {
+                font-style: italic;
+                font-size: smaller;
+            }
+            .startupBar
+            {
+                background-color: #EEEEEE;
+                cursor: default;
+            }
+            
+            .colorSucceeded
+            {
+                background-color: #90ED7B;
+            }
+            .colorIgnored
+            {
+                background-color: #FFFF85;
+            }
+            .colorPending
+            {
+                background-color: #D47BED;
+            }
+            .colorNothingToRun
+            {
+                background-color: #CCCCFF;
+            }
+            .colorSkipped
+            {
+                background-color: #CCCCFF;
+            }
+            .colorInconclusive
+            {
+                background-color: #7BEDED;
+            }
+            .colorCleanupFailed
+            {
+                background-color: #FFCCCC;
+            }
+            .colorRandomlyFailed
+            {
+                background-color: #EDB07B;
+            }
+            .colorFailed
+            {
+                background-color: #ED5F5F;
+            }
+            .colorInitializationFailed
+            {
+                background-color: #FF0000;
+            }
+            .colorFrameworkError
+            {
+                background-color: #FF0000;
+            }
+            ul.subNodeLinks
+            {
+                padding-left: 20px;
+                margin: 0px;
+            }
+            ul.subNodeLinks li
+            {
+                list-style: none;
+            }
+            
+            /* views general */
+            div.scrollable
+            {
+                /*overflow: auto; - thsi has to be set from js, because of an IE9 bug */
+            }
+            div.viewbox
+            {
+                position: relative;
+                border: 3px solid #e8eef4;
+            }
+            div.viewbox table
+            {
+                border: 0px;
+            }
+                        
+            /* testview */
+            #testview
+            {
+                padding-top: 23px;
+            }
+            
+            table.testview-items td
+            {
+                vertical-align: bottom;
+                padding: 0px 1px 0px 1px;
+            }
+            td.right-padding, td.left-padding
+            {
+                width: 25px;
+                min-width: 25px;
+            }
+            table.testview-items a.bar
+            {
+                width: 5px;
+            }
+            table.testview-items tr.testview-items-row
+            {
+                height: 60px;
+            }
+            
+            /* scale */
+            table.vertical-scale 
+            {
+                position: absolute;
+                top: 23px;
+                left: 0px;
+                width: 100%;
+                z-index: -100;
+            }
+            table.vertical-scale td, tr.horizontal-scale td
+            {
+                font-size: 60%;
+                line-height: normal;
+            }
+            table.vertical-scale tr.scale-max, table.vertical-scale tr.scale-mid 
+            {
+                height: 30px;
+            }
+            tr.horizontal-scale, table.vertical-scale tr.scale-min 
+            {
+                height: 12px;
+            }
+            
+            td.scale-max-label, td.scale-mid-label, td.scale-min-label
+            {
+                border-top: solid 1px #E6E6E6;
+                text-align: left;
+                vertical-align: top;
+            }
+            td.scale-10-label
+            {
+                border-left: solid 1px #E6E6E6;
+                text-align: left;
+                vertical-align: bottom;
+                padding-left: 1px;
+            }
+            tr.scale-mid td, tr.scale-min td, tr.scale-max td
+            {
+                border-top: solid 1px #E6E6E6;
+            }
+           
+            
+            /* bar-control */
+            #bar-control
+            {
+                font-size: 60%;
+                line-height: normal;
+                position: absolute;
+                right: 0px;
+                top: 0px;
+            }
+            #bar-control label
+            {
+                font-weight: bold;
+                vertical-align: middle;
+            }
+            #bar-control .option
+            {
+                vertical-align: middle;
+                text-transform: lowercase;
+            }
+            #bar-control input[type="checkbox"]
+            {
+                padding: 0 2px 0 3px;
+            }
+            #bar-control input
+            {
+                vertical-align: top;
+                height: 12px;
+                margin: 0px;
+                padding: 0px;
+            }
+            #bar-control div
+            {
+                float: right;
+                margin: 3px 5px 3px 5px;
+            }
+            
+            
+            /* timeline view */
+            #timelineview
+            {
+                padding-top: 5px;
+            }
+            table.timelineview a
+            {
+                height: 20px;
+            }
+            table.timelineview td
+            {
+                vertical-align: bottom;
+                padding: 0px 1px 0px 0px;
+                border: 0px;
+            }
+            tr.thread-items-row
+            {
+                height: 25px;
+            }
+            tr.thread-items-row td
+            {
+                vertical-align: bottom;
+            }
+            td.thread-label
+            {
+                padding: 0px 6px 0px 6px;
+                text-align: right;
+                line-height: 18px;
+                vertical-align: bottom;
+            }
+            th.thread-label
+            {
+                padding: 3px 6px 0px 6px;
+                line-height: 18px;
+                text-align: left;
+                vertical-align: bottom;
+            }
+        </style>
+	</head>
+	<body>
+        <h1>uitest_vargai Test Execution Report</h1>
+        <ul>
+            <li>Project: uitest_vargai</li>
+            <li>Configuration: Default</li>
+            <li>Test Assemblies: uitest_vargai.dll</li>
+            <li>Start Time: 2017. 07. 06. 19:31:21</li>
+            <li>Duration: 00:00:18.2807705</li>
+            <li>Test Threads: 1</li>
+        </ul>
+
+        <h2>Result: all tests passed</h2>
+        <table class="testEvents">
+                <tr>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+    </tr>
+
+                <tr>
+            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="21 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>21</td>
+    <td>21</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+    </tr>
+
+        </table>
+        
+        <h2>Test Timeline Summary</h2>
+
+        <div id="timelineview" class="viewbox">
+            <div class="scrollable">
+                <table cellpadding="0" cellspacing="0">
+                    <tr>
+                        <th class="thread-label" colspan="2">thread</th>
+                    </tr>
+                        <tr class="thread-items-row">
+                            <td class="thread-label" title="Machine: DESKTOP-51BLSOI">#0</td>
+                            <td colspan="3">
+                                <table class="timelineview" cellpadding="0" cellspacing="0">
+                                    <tr>
+
+                                            <td>
+        <a
+            class="bar startupBar" 
+            style="width: 3px;" 
+                title="test thread startup" 
+        >&nbsp;</a>
+    </td>
+
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 32px;" 
+                title="404 error landing from home page (in ErrorFunctionality)" 
+                href="#t839297797.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="404 error landing from form page (in ErrorFunctionality)" 
+                href="#t374802208.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 24px;" 
+                title="Display the title on home page (in DisplayTitleAndLogo)" 
+                href="#t-512649853.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display the title on form page (in DisplayTitleAndLogo)" 
+                href="#t858658960.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display the title on hello page (in DisplayTitleAndLogo)" 
+                href="#t-862626620.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display the logo on home page (in DisplayTitleAndLogo)" 
+                href="#t1137739178.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display the logo on form page (in DisplayTitleAndLogo)" 
+                href="#t888608561.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display the logo on hello page (in DisplayTitleAndLogo)" 
+                href="#t1788266173.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 11px;" 
+                title="Navigate to form page from home page (in FormFunctionality)" 
+                href="#t472619437.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Navigate to form page from form page (in FormFunctionality)" 
+                href="#t-991776722.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display input form on form page (in FormFunctionality)" 
+                href="#t927297096.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Greetings from hello page, John (in FormFunctionality)" 
+                href="#t2043147326.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Greetings from hello page, Sophia (in FormFunctionality)" 
+                href="#t2019670039.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Greetings from hello page, Charlie (in FormFunctionality)" 
+                href="#t511520783.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Greetings from hello page, Emily (in FormFunctionality)" 
+                href="#t-1173663369.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 17px;" 
+                title="Navigate to home page from home page (in HomeFunctionality)" 
+                href="#t2035925357.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Navigate to home page from home page with UI Testing (in HomeFunctionality)" 
+                href="#t762626807.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Navigate to home page from form page (in HomeFunctionality)" 
+                href="#t1617580512.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Navigate to home page from form page with UI Testing (in HomeFunctionality)" 
+                href="#t1735308820.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display header on home page (in HomeFunctionality)" 
+                href="#t592927543.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorSucceeded" 
+            style="width: 3px;" 
+                title="Display paragraph on home page (in HomeFunctionality)" 
+                href="#t-1462699794.0"
+        >&nbsp;</a>
+    </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    <tr class="horizontal-scale">
+                        <td>&nbsp;</td>
+                            <td class="scale-10-label" style="width: 64px;min-width: 64px;">0s</td>
+                            <td class="scale-10-label" style="width: 65px;min-width: 65px;">8s</td>
+                        <td class="scale-10-label">16s</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <h2>Test Result View</h2>
+        <div id="testview" class="viewbox">
+            <div id="bar-control">
+                <div id="bar-control-sort">
+                    <label>sort by:</label>
+                    <span class="option"><input type="radio" name="barSortOrder" value="exectime" />Time</span>
+                    <span class="option"><input type="radio" name="barSortOrder" value="acttime" />Act Time</span>
+                    <span class="option"><input type="radio" name="barSortOrder" value="order" />Execution</span>
+                    <span class="option"><input type="radio" name="barSortOrder" value="rescode" checked="checked" />Result</span>
+                    <span class="option"><input type="checkbox" name="barSortDesc" id="barSortDesc" checked="checked" />desc</span>
+                </div>
+                <div id="bar-control-heights">
+                    <label>heights:</label>
+                    <span class="option"><input type="radio" checked="checked" name="barHeight" value="exectime" />Time</span>
+                    <span class="option"><input type="radio" name="barHeight" value="acttime" />Act Time</span>
+                    
+                </div>
+            </div>
+            <table class="vertical-scale" cellpadding="0" cellspacing="0">
+                <tr class="scale-max">
+                    <td class="left-padding scale-max-label">&nbsp;</td>
+                    <td colspan="21">&nbsp;</td>
+                    <td class="right-padding">&nbsp;</td>
+                </tr>
+                <tr class="scale-mid">
+                    <td class="left-padding scale-mid-label">&nbsp;</td>
+                    <td colspan="21">&nbsp;</td>
+                    <td class="right-padding">&nbsp;</td>
+                </tr>
+                <tr class="scale-min">
+                    <td class="left-padding scale-min-label">&nbsp;</td>
+                    <td colspan="21">&nbsp;</td>
+                    <td class="right-padding">&nbsp;</td>
+                </tr>
+            </table>
+            <div class="scrollable">
+                <table class="testview-items" cellpadding="0" cellspacing="0">
+                    <tr class="testview-items-row">
+                        <td class="left-padding">&nbsp;</td>
+    <td class="testview-item" 
+        data-sr-exectime="4.4191853" data-sr-rescode="110" data-sr-order="0" data-sr-acttime="0.176">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 60px;"
+            title="404 error landing from home page (in ErrorFunctionality)"
+            href="#t839297797.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.4872801" data-sr-rescode="110" data-sr-order="1" data-sr-acttime="0.117">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 7px;"
+            title="404 error landing from form page (in ErrorFunctionality)"
+            href="#t374802208.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="3.2047264" data-sr-rescode="110" data-sr-order="2" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 44px;"
+            title="Display the title on home page (in DisplayTitleAndLogo)"
+            href="#t-512649853.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.1594979" data-sr-rescode="110" data-sr-order="3" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display the title on form page (in DisplayTitleAndLogo)"
+            href="#t858658960.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.1378482" data-sr-rescode="110" data-sr-order="4" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display the title on hello page (in DisplayTitleAndLogo)"
+            href="#t-862626620.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0660633" data-sr-rescode="110" data-sr-order="5" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display the logo on home page (in DisplayTitleAndLogo)"
+            href="#t1137739178.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.094962" data-sr-rescode="110" data-sr-order="6" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display the logo on form page (in DisplayTitleAndLogo)"
+            href="#t888608561.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.1411517" data-sr-rescode="110" data-sr-order="7" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display the logo on hello page (in DisplayTitleAndLogo)"
+            href="#t1788266173.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="3.383131" data-sr-rescode="110" data-sr-order="8" data-sr-acttime="0.183">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 46px;"
+            title="Navigate to form page from home page (in FormFunctionality)"
+            href="#t472619437.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.1871365" data-sr-rescode="110" data-sr-order="9" data-sr-acttime="0.085">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 3px;"
+            title="Navigate to form page from form page (in FormFunctionality)"
+            href="#t-991776722.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.1774539" data-sr-rescode="110" data-sr-order="10" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display input form on form page (in FormFunctionality)"
+            href="#t927297096.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.3196119" data-sr-rescode="110" data-sr-order="11" data-sr-acttime="0.191">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 4px;"
+            title="Greetings from hello page, John (in FormFunctionality)"
+            href="#t2043147326.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.3508981" data-sr-rescode="110" data-sr-order="12" data-sr-acttime="0.185">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 5px;"
+            title="Greetings from hello page, Sophia (in FormFunctionality)"
+            href="#t2019670039.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.354752" data-sr-rescode="110" data-sr-order="13" data-sr-acttime="0.19">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 5px;"
+            title="Greetings from hello page, Charlie (in FormFunctionality)"
+            href="#t511520783.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.4500315" data-sr-rescode="110" data-sr-order="14" data-sr-acttime="0.186">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 6px;"
+            title="Greetings from hello page, Emily (in FormFunctionality)"
+            href="#t-1173663369.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="3.3926011" data-sr-rescode="110" data-sr-order="15" data-sr-acttime="0.109">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 46px;"
+            title="Navigate to home page from home page (in HomeFunctionality)"
+            href="#t2035925357.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.1244254" data-sr-rescode="110" data-sr-order="16" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Navigate to home page from home page with UI Testing (in HomeFunctionality)"
+            href="#t762626807.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.2554054" data-sr-rescode="110" data-sr-order="17" data-sr-acttime="0.049">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 3px;"
+            title="Navigate to home page from form page (in HomeFunctionality)"
+            href="#t1617580512.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0965647" data-sr-rescode="110" data-sr-order="18" data-sr-acttime="0.001">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Navigate to home page from form page with UI Testing (in HomeFunctionality)"
+            href="#t1735308820.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0741519" data-sr-rescode="110" data-sr-order="19" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 2px;"
+            title="Display header on home page (in HomeFunctionality)"
+            href="#t592927543.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.2592644" data-sr-rescode="110" data-sr-order="20" data-sr-acttime="0.0">
+        <a
+            class="bar colorSucceeded" 
+            style="height: 4px;"
+            title="Display paragraph on home page (in HomeFunctionality)"
+            href="#t-1462699794.0">&nbsp;</a>
+    </td>
+                        <td class="right-padding">&nbsp;</td>
+                    </tr>
+                    <tr class="horizontal-scale">
+                        <td class="left-padding">&nbsp;</td>
+                        <td colspan="10">&nbsp;</td>
+                            <td class="scale-10-label" colspan="10">10</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <h2>Feature Summary</h2>
+        <table class="testEvents">
+                <tr>
+            <th>Feature</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+            <th>Duration</th>
+    </tr>
+
+    <tr>
+            <td><a href="#f646290623">DisplayTitleAndLogo</a></td>
+            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="6 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>6</td>
+    <td>6</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:03.8042495</td>
+
+    </tr>
+    <tr>
+            <td><a href="#f1344657516">ErrorFunctionality</a></td>
+            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="2 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>2</td>
+    <td>2</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:04.9064654</td>
+
+    </tr>
+    <tr>
+            <td><a href="#f-584794498">FormFunctionality</a></td>
+            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="7 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>7</td>
+    <td>7</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:05.2230149</td>
+
+    </tr>
+    <tr>
+            <td><a href="#f598250599">HomeFunctionality</a></td>
+            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="6 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>6</td>
+    <td>6</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:04.2024129</td>
+
+    </tr>
+        </table>
+
+        <a name="error_summary" />
+        <h2>Error Summary</h2>
+        <table class="testEvents">
+                <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+    </tr>
+
+        </table>
+
+        <h2>Scenario Summary</h2>
+            <a name="f646290623" />
+            <h3>Feature: DisplayTitleAndLogo</h3>
+                <div class="description"><pre>	Requirement coverage: REQ-UI-01, REQ-UI-02
+	As the product owner, I want to display the page title and company logo on all pages.</pre>
+                </div>
+            <table class="testEvents">
+                    <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+            <th>Duration</th>
+    </tr>
+
+                    <tr>
+                        <td>
+                                    <a href="#t-512649853.0">Scenario: Display the title on home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:03.2047264</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t858658960.0">Scenario: Display the title on form page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.1594979</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-862626620.0">Scenario: Display the title on hello page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.1378482</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t1137739178.0">Scenario: Display the logo on home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.0660633</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t888608561.0">Scenario: Display the logo on form page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.0949620</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t1788266173.0">Scenario: Display the logo on hello page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.1411517</td>
+
+                        
+                    </tr>
+            </table>
+            <a name="f1344657516" />
+            <h3>Feature: ErrorFunctionality</h3>
+                <div class="description"><pre>	Requirement coverage: REQ-UI-07
+	As a product owner, I want the page to return a 404 HTTP response code landing when the Error button is clicked.</pre>
+                </div>
+            <table class="testEvents">
+                    <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+            <th>Duration</th>
+    </tr>
+
+                    <tr>
+                        <td>
+                                    <a href="#t839297797.0">Scenario: 404 error landing from home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:04.4191853</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t374802208.0">Scenario: 404 error landing from form page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.4872801</td>
+
+                        
+                    </tr>
+            </table>
+            <a name="f-584794498" />
+            <h3>Feature: FormFunctionality</h3>
+                <div class="description"><pre>	Requirement coverage: REQ-UI-05, REQ-UI-06, REQ-UI-11, REQ-UI-12
+	As the product owner, I want the following:
+		- When I click on the Form button, I should get navigated to the Form page
+		- When I click on the Form button, it should turn to active status
+		- A form should be visible with one input box and one submit button
+		- If you type something the input field and submit the form, you should get redirected to the Hello page where &quot;Hello &lt;something&gt;&quot; is shown.</pre>
+                </div>
+            <table class="testEvents">
+                    <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+            <th>Duration</th>
+    </tr>
+
+                    <tr>
+                        <td>
+                                    <a href="#t472619437.0">Scenario: Navigate to form page from home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:03.3831310</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-991776722.0">Scenario: Navigate to form page from form page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.1871365</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t927297096.0">Scenario: Display input form on form page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.1774539</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t2043147326.0">Scenario: Greetings from hello page, John</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.3196119</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t2019670039.0">Scenario: Greetings from hello page, Sophia</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.3508981</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t511520783.0">Scenario: Greetings from hello page, Charlie</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.3547520</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-1173663369.0">Scenario: Greetings from hello page, Emily</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.4500315</td>
+
+                        
+                    </tr>
+            </table>
+            <a name="f598250599" />
+            <h3>Feature: HomeFunctionality</h3>
+                <div class="description"><pre>	Requirement coverage: REQ-UI-03, REQ-UI-04, REQ-UI-08, REQ-UI-09, REQ-UI-10
+	As the product owner, I want the following:
+		- When I click on the Home button, I should get navigated to the Home page.
+		- When I click on the Home button, it should turn to active status.
+		- When I click on the UI Testing button, I should get navigated to the Home page
+		- The following text should be visible on the Home page in &lt;h1&gt; tag: &quot;Welcome to the Docler Holding QA Department&quot;
+		- The following text should be visible on the Home page in &lt;p&gt; tag: &quot;This site is dedicated to perform some exercises and demonstrate automated web testing.&quot;</pre>
+                </div>
+            <table class="testEvents">
+                    <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+            <th>Duration</th>
+    </tr>
+
+                    <tr>
+                        <td>
+                                    <a href="#t2035925357.0">Scenario: Navigate to home page from home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:03.3926011</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t762626807.0">Scenario: Navigate to home page from home page with UI Testing</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.1244254</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t1617580512.0">Scenario: Navigate to home page from form page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.2554054</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t1735308820.0">Scenario: Navigate to home page from form page with UI Testing</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.0965647</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t592927543.0">Scenario: Display header on home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.0741519</td>
+
+                        
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-1462699794.0">Scenario: Display paragraph on home page</a>
+
+                        </td>
+                        
+                            <td>
+            100%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSucceeded" 
+                           style="width: 199px;" 
+                           title="1 succeeded" 
+                                                   />
+                    </td>
+            </tr>
+            
+        </table>
+    </td>
+    <td>1</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+        <td>00:00:00.2592644</td>
+
+                        
+                    </tr>
+            </table>
+
+        <h2>Execution Details</h2>
+            <a name="t839297797.0" />
+            <h3>Scenario: 404 error landing from home page (in uitest_vargai, ErrorFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:21</li>
+                <li>Execution time (sec): 4,4191853</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log"></pre>
+                        </td>
+                        <td>
+                            <!-- [Initialization: Feature - ErrorFunctionality] -->
+                            <pre class="log">-&gt; Using app.config</pre>
+                        </td>
+                        <td>Succeeded in 3.989s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - 404 error landing from home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.222s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press Error</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - 404 error landing from home page] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;Error&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.176s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The 404 landing is shown</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - 404 error landing from home page] -->
+                            <pre class="log">done: ErrorFunctionalitySteps.ThenTheLandingIsShown(404) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.012s</td>
+                    </tr>
+            </table>
+            <a name="t374802208.0" />
+            <h3>Scenario: 404 error landing from form page (in uitest_vargai, ErrorFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:25</li>
+                <li>Execution time (sec): 0,4872801</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - 404 error landing from form page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.219s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press Error</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - 404 error landing from form page] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;Error&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.117s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The 404 landing is shown</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - 404 error landing from form page] -->
+                            <pre class="log">done: ErrorFunctionalitySteps.ThenTheLandingIsShown(404) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.009s</td>
+                    </tr>
+            </table>
+            <a name="t-512649853.0" />
+            <h3>Scenario: Display the title on home page (in uitest_vargai, DisplayTitleAndLogo)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:26</li>
+                <li>Execution time (sec): 3,2047264</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display the title on home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.124s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The title is UI Testing Site</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display the title on home page] -->
+                            <pre class="log">done: DisplayTitleAndLogoSteps.ThenTitleIsDisplayed(&quot;UI Testing Site&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.005s</td>
+                    </tr>
+            </table>
+            <a name="t858658960.0" />
+            <h3>Scenario: Display the title on form page (in uitest_vargai, DisplayTitleAndLogo)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:29</li>
+                <li>Execution time (sec): 0,1594979</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display the title on form page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.155s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The title is UI Testing Site</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display the title on form page] -->
+                            <pre class="log">done: DisplayTitleAndLogoSteps.ThenTitleIsDisplayed(&quot;UI Testing Site&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.003s</td>
+                    </tr>
+            </table>
+            <a name="t-862626620.0" />
+            <h3>Scenario: Display the title on hello page (in uitest_vargai, DisplayTitleAndLogo)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:29</li>
+                <li>Execution time (sec): 0,1378482</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The hello page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display the title on hello page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;hello&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.134s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The title is UI Testing Site</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display the title on hello page] -->
+                            <pre class="log">done: DisplayTitleAndLogoSteps.ThenTitleIsDisplayed(&quot;UI Testing Site&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.004s</td>
+                    </tr>
+            </table>
+            <a name="t1137739178.0" />
+            <h3>Scenario: Display the logo on home page (in uitest_vargai, DisplayTitleAndLogo)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:29</li>
+                <li>Execution time (sec): 0,0660633</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display the logo on home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.05s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The logo is displayed</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display the logo on home page] -->
+                            <pre class="log">done: DisplayTitleAndLogoSteps.ThenLogoIsDisplayed(&quot;displayed&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.015s</td>
+                    </tr>
+            </table>
+            <a name="t888608561.0" />
+            <h3>Scenario: Display the logo on form page (in uitest_vargai, DisplayTitleAndLogo)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:29</li>
+                <li>Execution time (sec): 0,094962</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display the logo on form page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.088s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The logo is displayed</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display the logo on form page] -->
+                            <pre class="log">done: DisplayTitleAndLogoSteps.ThenLogoIsDisplayed(&quot;displayed&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.006s</td>
+                    </tr>
+            </table>
+            <a name="t1788266173.0" />
+            <h3>Scenario: Display the logo on hello page (in uitest_vargai, DisplayTitleAndLogo)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:29</li>
+                <li>Execution time (sec): 0,1411517</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The hello page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display the logo on hello page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;hello&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.041s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The logo is displayed</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display the logo on hello page] -->
+                            <pre class="log">done: DisplayTitleAndLogoSteps.ThenLogoIsDisplayed(&quot;displayed&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.007s</td>
+                    </tr>
+            </table>
+            <a name="t472619437.0" />
+            <h3>Scenario: Navigate to form page from home page (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:29</li>
+                <li>Execution time (sec): 3,383131</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Navigate to form page from home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.138s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press Form</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Navigate to form page from home page] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;Form&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.183s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then Form button is active</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to form page from home page] -->
+                            <pre class="log">done: CommonSteps.ThenButtonIsActive(&quot;Form&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.022s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to form page from home page] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenTheFormPageIsLoaded() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.006s</td>
+                    </tr>
+            </table>
+            <a name="t-991776722.0" />
+            <h3>Scenario: Navigate to form page from form page (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:33</li>
+                <li>Execution time (sec): 0,1871365</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Navigate to form page from form page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.084s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press Form</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Navigate to form page from form page] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;Form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.085s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then Form button is active</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to form page from form page] -->
+                            <pre class="log">done: CommonSteps.ThenButtonIsActive(&quot;Form&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.012s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to form page from form page] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenTheFormPageIsLoaded() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.005s</td>
+                    </tr>
+            </table>
+            <a name="t927297096.0" />
+            <h3>Scenario: Display input form on form page (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:33</li>
+                <li>Execution time (sec): 0,1774539</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display input form on form page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.086s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The input form is displayed</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display input form on form page] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenTheInputFormIsDisplayed() (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.092s</td>
+                    </tr>
+            </table>
+            <a name="t2043147326.0" />
+            <h3>Scenario: Greetings from hello page, John (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:33</li>
+                <li>Execution time (sec): 0,3196119</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Greetings from hello page, John] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.084s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I enter John into the text box and submit</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Greetings from hello page, John] -->
+                            <pre class="log">done: FormFunctionalitySteps.WhenIEnterIntoTheTextBoxAndSubmit(&quot;John&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.191s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then I should get redirected to hello page</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, John] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenIShouldGetRedirectedToHelloPage() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.021s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And Get greeted with Hello John!</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, John] -->
+                            <pre class="log">done: FormFunctionalitySteps.GetGreeted(&quot;Hello John!&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.023s</td>
+                    </tr>
+            </table>
+            <a name="t2019670039.0" />
+            <h3>Scenario: Greetings from hello page, Sophia (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:33</li>
+                <li>Execution time (sec): 0,3508981</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Greetings from hello page, Sophia] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.133s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I enter Sophia into the text box and submit</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Greetings from hello page, Sophia] -->
+                            <pre class="log">done: FormFunctionalitySteps.WhenIEnterIntoTheTextBoxAndSubmit(&quot;Sophia&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.185s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then I should get redirected to hello page</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, Sophia] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenIShouldGetRedirectedToHelloPage() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.008s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And Get greeted with Hello Sophia!</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, Sophia] -->
+                            <pre class="log">done: FormFunctionalitySteps.GetGreeted(&quot;Hello Sophia!&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.023s</td>
+                    </tr>
+            </table>
+            <a name="t511520783.0" />
+            <h3>Scenario: Greetings from hello page, Charlie (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:34</li>
+                <li>Execution time (sec): 0,354752</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Greetings from hello page, Charlie] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.134s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I enter Charlie into the text box and submit</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Greetings from hello page, Charlie] -->
+                            <pre class="log">done: FormFunctionalitySteps.WhenIEnterIntoTheTextBoxAndSubmit(&quot;Charlie&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.19s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then I should get redirected to hello page</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, Charlie] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenIShouldGetRedirectedToHelloPage() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.008s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And Get greeted with Hello Charlie!</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, Charlie] -->
+                            <pre class="log">done: FormFunctionalitySteps.GetGreeted(&quot;Hello Charlie!&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.021s</td>
+                    </tr>
+            </table>
+            <a name="t-1173663369.0" />
+            <h3>Scenario: Greetings from hello page, Emily (in uitest_vargai, FormFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:34</li>
+                <li>Execution time (sec): 0,4500315</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Greetings from hello page, Emily] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.134s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I enter Emily into the text box and submit</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Greetings from hello page, Emily] -->
+                            <pre class="log">done: FormFunctionalitySteps.WhenIEnterIntoTheTextBoxAndSubmit(&quot;Emily&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.186s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then I should get redirected to hello page</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, Emily] -->
+                            <pre class="log">done: FormFunctionalitySteps.ThenIShouldGetRedirectedToHelloPage() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.009s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And Get greeted with Hello Emily!</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Greetings from hello page, Emily] -->
+                            <pre class="log">done: FormFunctionalitySteps.GetGreeted(&quot;Hello Emily!&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.022s</td>
+                    </tr>
+            </table>
+            <a name="t2035925357.0" />
+            <h3>Scenario: Navigate to home page from home page (in uitest_vargai, HomeFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:35</li>
+                <li>Execution time (sec): 3,3926011</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Navigate to home page from home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.155s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press Home</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Navigate to home page from home page] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;Home&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.109s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then Home button is active</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to home page from home page] -->
+                            <pre class="log">done: CommonSteps.ThenButtonIsActive(&quot;Home&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.022s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to home page from home page] -->
+                            <pre class="log">done: HomeFunctionalitySteps.ThenTheHomePageIsLoaded() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.006s</td>
+                    </tr>
+            </table>
+            <a name="t762626807.0" />
+            <h3>Scenario: Navigate to home page from home page with UI Testing (in uitest_vargai, HomeFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:38</li>
+                <li>Execution time (sec): 0,1244254</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Navigate to home page from home page with UI Testing] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.118s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press UI Testing</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Navigate to home page from home page with UI Testing] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;UI Testing&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to home page from home page with UI Testing] -->
+                            <pre class="log">done: HomeFunctionalitySteps.ThenTheHomePageIsLoaded() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.006s</td>
+                    </tr>
+            </table>
+            <a name="t1617580512.0" />
+            <h3>Scenario: Navigate to home page from form page (in uitest_vargai, HomeFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:38</li>
+                <li>Execution time (sec): 0,2554054</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Navigate to home page from form page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,2s)</pre>
+                        </td>
+                        <td>Succeeded in 0.189s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press Home</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Navigate to home page from form page] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;Home&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.049s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then Home button is active</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to home page from form page] -->
+                            <pre class="log">done: CommonSteps.ThenButtonIsActive(&quot;Home&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.011s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">And The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to home page from form page] -->
+                            <pre class="log">done: HomeFunctionalitySteps.ThenTheHomePageIsLoaded() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.006s</td>
+                    </tr>
+            </table>
+            <a name="t1735308820.0" />
+            <h3>Scenario: Navigate to home page from form page with UI Testing (in uitest_vargai, HomeFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:38</li>
+                <li>Execution time (sec): 0,0965647</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The form page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Navigate to home page from form page with UI Testing] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;form&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.091s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When I press UI Testing</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Navigate to home page from form page with UI Testing] -->
+                            <pre class="log">done: CommonSteps.WhenIPress(&quot;UI Testing&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.001s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Navigate to home page from form page with UI Testing] -->
+                            <pre class="log">done: HomeFunctionalitySteps.ThenTheHomePageIsLoaded() (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.004s</td>
+                    </tr>
+            </table>
+            <a name="t592927543.0" />
+            <h3>Scenario: Display header on home page (in uitest_vargai, HomeFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:38</li>
+                <li>Execution time (sec): 0,0741519</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display header on home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.047s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The header is Welcome to the Docler Holding QA Department</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display header on home page] -->
+                            <pre class="log">done: HomeFunctionalitySteps.ThenTheHeaderIs(&quot;Welcome to the Do...&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.027s</td>
+                    </tr>
+            </table>
+            <a name="t-1462699794.0" />
+            <h3>Scenario: Display paragraph on home page (in uitest_vargai, HomeFunctionality)</h3>
+            <ul>
+                <li>Status: Succeeded</li>
+                <li>Start time: 2017. 07. 06. 19:31:39</li>
+                <li>Execution time (sec): 0,2592644</li>
+                <li>Thread: #0</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Given The home page is loaded</pre>
+                        </td>
+                        <td>
+                            <!-- [TestArrange: Scenario - Display paragraph on home page] -->
+                            <pre class="log">done: CommonSteps.GivenThePageIsLoaded(&quot;home&quot;) (0,1s)</pre>
+                        </td>
+                        <td>Succeeded in 0.128s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then The paragraph is This site is dedicated to perform some exercises and demonstrate automated web testing.</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Display paragraph on home page] -->
+                            <pre class="log">done: HomeFunctionalitySteps.ThenTheParagraphIs(&quot;This site is dedi...&quot;) (0,0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.022s</td>
+                    </tr>
+            </table>
+	</body>
+</html>
+</a><div style='position: absolute; top:0px; right:10px; z-index: 1000; text-align: right; font-size: small; color: #FF5555'>
+Generated by an evaluation version of SpecRun.<br />
+This version can be used for evaluation purposes only.<br />
+For obtaining a registered license please visit <a href='http://www.specflow.org/plus'>http://www.specflow.org/plus</a>.
+</div>
